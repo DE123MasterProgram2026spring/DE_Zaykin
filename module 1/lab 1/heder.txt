@@ -1,0 +1,29 @@
+---
+title: "Лабораторна робота №1: Основи маніпуляції даними з `dplyr`"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "[Сидоренко Валерій](https://www.linkedin.com/in/valeriy-sydorenko-6782279a/)"
+date: last-modified
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+#     include-in-footer:
+#       text: |
+#         <hr>
+#         <footer style="text-align: center; font-size: 0.9em; color: #666;">
+#           <p>Виконав(ла): <strong>Ваше ПІБ</strong> | Група: <strong>Ваша група</strong> | Викладач: Сидоренко В.М.</p>
+#           <p>Кременчуцький національний університет імені Михайла Остроградського &copy; 2025</p>
+#         </footer>
+# editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
