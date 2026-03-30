@@ -1,0 +1,393 @@
+---
+title: "Лабораторна робота №2: Інтеграція та об’єднання даних з різних джерел"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "&copy; [Andrew Zaykin](https://www.linkedin.com/in/zaykinandrew/), `r format(Sys.time(), '%Y')`"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+### Мета роботи
+
+Освоїти повний цикл інтеграції реляційних даних у середовищі R: від завантаження даних з різноманітних джерел (CSV, Excel, Google Таблиці) до їх об’єднання за допомогою вертикальних (`bind_rows`) та горизонтальних (`left_join`, `semi_join`, `anti_join`) операцій. Навчитися будувати реалістичні ETL-конвеєри, які моделюють типові задачі інженера даних у production-середовищі.
+
+---
+
+### Хід роботи
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#| label: setup
+#| message: false
+#| warning: false
+
+Sys.setlocale("LC_ALL", "en_US.UTF-8")
+
+library(readxl)
+library(vroom)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(knitr)
+```
+
+Виконати індивідуальне завдання варіанту 2:
+
+0.  **Згенерувати два Excel-файли з навчальними даними:**
+    -   `semester1.xlsx` -- містить аркуші:
+        -   `students` -- довідник студентів (`student_id`, `full_name`, `group`, `faculty`)\
+        -   `grades_math`, `grades_physics`, `grades_cs` -- оцінки з окремих дисциплін (`student_id`, `exam_score`, `project_score`)
+    -   `semester2.xlsx` -- аналогічна структура для другого семестру.
+    -   `scholarships.csv` -- інформація про стипендії (`student_id`, `scholarship_type`, `amount`).
+
+1.  **Завантаження даних**
+    -   Завантажте обидва Excel-файли, прочитайте всі аркуші з оцінками.\
+    -   Завантажте `scholarships.csv` за допомогою `vroom`.
+2.  **Вертикальне об’єднання**
+    -   Об’єднайте всі таблиці оцінок за **перший семестр** у єдину таблицю `grades_s1`, додавши стовпець `semester = "S1"` та `subject` (назва дисципліни).\
+    -   Аналогічно створіть `grades_s2` для другого семестру.\
+    -   Об’єднайте `grades_s1` і `grades_s2` у `all_grades`.
+3.  **Горизонтальне об’єднання**
+    -   Додайте до `all_grades` інформацію про студентів (`full_name`, `group`, `faculty`) через `left_join`.\
+    -   Додайте інформацію про стипендії (`scholarship_type`, `amount`) через `left_join`.
+4.  **Агрегація та аналіз**
+    -   Розрахуйте загальний бал за дисципліну: `total_score = 0.6 * exam_score + 0.4 * project_score`.\
+    -   Для кожної групи та семестру обчисліть:
+        -   середній загальний бал,\
+        -   кількість студентів з балом ≥ 90,\
+        -   частку студентів зі стипендією.
+5.  **Фільтруюче з’єднання**
+    -   Визначте `student_id`, які отримували стипендію *в обох семестрах* (використайте `semi_join` двічі).\
+    -   Визначте студентів, які *втратили стипендію* після першого семестру -- були в `scholarships` і в `S1`, але відсутні в `S2` (використайте `anti_join`).
+
+#### 0. Генерація даних
+
+Створимо синтетичні датасети у папці `data/`.
+
+```{r}
+#| label: generate-data
+#| message: false
+
+library(writexl)
+
+Sys.setlocale("LC_ALL", "en_US.UTF-8")
+set.seed(42)
+
+students <- tibble(
+  student_id = sprintf("STU%03d", 1:30),
+  full_name = c(
+    "Іванов Олексій", "Петренко Марія", "Коваленко Дмитро",
+    "Сидоренко Анна", "Бондаренко Артем", "Шевченко Олена",
+    "Мельник Богдан", "Ткаченко Вікторія", "Кравченко Ігор",
+    "Олійник Катерина", "Лисенко Максим", "Гончаренко Юлія",
+    "Мороз Андрій", "Павленко Софія", "Руденко Тарас",
+    "Захарченко Дарина", "Левченко Микола", "Савченко Аліна",
+    "Поліщук Євген", "Кузьменко Надія", "Василенко Роман",
+    "Литвиненко Ірина", "Герасименко Сергій", "Марченко Олександра",
+    "Демченко Владислав", "Тимошенко Тетяна", "Остапенко Денис",
+    "Клименко Валерія", "Романенко Павло", "Яковенко Людмила"
+  ),
+  group = rep(c("КІ-21", "КІ-22", "КН-21"), each = 10),
+  faculty = rep(c("ФІТ", "ФІТ", "ФЕМ"), each = 10)
+)
+
+generate_grades <- function(ids, mean_exam = 75, mean_proj = 78) {
+  tibble(
+    student_id = ids,
+    exam_score = pmin(100, pmax(30, round(rnorm(length(ids), mean_exam, 12)))),
+    project_score = pmin(100, pmax(30, round(rnorm(length(ids), mean_proj, 10))))
+  )
+}
+
+s1_grades <- list(
+  grades_math    = generate_grades(students$student_id, 72, 76),
+  grades_physics = generate_grades(students$student_id, 68, 74),
+  grades_cs      = generate_grades(students$student_id, 80, 82)
+)
+
+s2_grades <- list(
+  grades_math    = generate_grades(students$student_id, 74, 78),
+  grades_physics = generate_grades(students$student_id, 70, 76),
+  grades_cs      = generate_grades(students$student_id, 82, 84)
+)
+
+dir.create("data", showWarnings = FALSE)
+
+write_xlsx(c(list(students = students), s1_grades), "data/semester1.xlsx")
+write_xlsx(c(list(students = students), s2_grades), "data/semester2.xlsx")
+
+avg_score <- function(gr) {
+  gr %>% mutate(total = 0.6 * exam_score + 0.4 * project_score)
+}
+
+top_s1 <- bind_rows(lapply(s1_grades, avg_score)) %>%
+  group_by(student_id) %>%
+  summarise(avg_total = mean(total)) %>%
+  filter(avg_total >= 75) %>%
+  pull(student_id)
+
+top_s2 <- bind_rows(lapply(s2_grades, avg_score)) %>%
+  group_by(student_id) %>%
+  summarise(avg_total = mean(total)) %>%
+  filter(avg_total >= 75) %>%
+  pull(student_id)
+
+schol_s1 <- sample(top_s1, min(15, length(top_s1)))
+schol_s2 <- sample(top_s2, min(12, length(top_s2)))
+social_ids <- sample(setdiff(students$student_id, c(schol_s1, schol_s2)), 5)
+
+scholarships <- bind_rows(
+  tibble(student_id = schol_s1, semester = "S1",
+         scholarship_type = "academic",
+         amount = sample(c(1500, 2000, 2500), length(schol_s1), replace = TRUE)),
+  tibble(student_id = schol_s2, semester = "S2",
+         scholarship_type = "academic",
+         amount = sample(c(1500, 2000, 2500), length(schol_s2), replace = TRUE)),
+  tibble(student_id = rep(social_ids, 2),
+         semester = rep(c("S1", "S2"), each = length(social_ids)),
+         scholarship_type = "social", amount = 1200)
+)
+
+write.csv(scholarships, "data/scholarships.csv", row.names = FALSE)
+```
+
+Дані збережено:
+
+- `data/semester1.xlsx` (аркуші: `students`, `grades_math`, `grades_physics`, `grades_cs`)
+- `data/semester2.xlsx` (аналогічна структура)
+- `data/scholarships.csv` (`student_id`, `semester`, `scholarship_type`, `amount`)
+
+---
+
+#### 1. Завантаження даних
+
+##### 1.1 Excel-файли (readxl)
+
+```{r}
+#| label: load-excel
+#| message: false
+
+sheets_s1 <- excel_sheets("data/semester1.xlsx")
+sheets_s2 <- excel_sheets("data/semester2.xlsx")
+
+grade_sheets <- c("grades_math", "grades_physics", "grades_cs")
+
+s1_data <- grade_sheets %>%
+  set_names() %>%
+  map(~ read_excel("data/semester1.xlsx", sheet = .x))
+
+s2_data <- grade_sheets %>%
+  set_names() %>%
+  map(~ read_excel("data/semester2.xlsx", sheet = .x))
+
+students_ref <- read_excel("data/semester1.xlsx", sheet = "students")
+
+students_ref %>% head(5) %>% kable(caption = "Довідник студентів (перші 5 рядків)")
+```
+
+##### 1.2 CSV-файл (vroom)
+
+```{r}
+#| label: load-csv
+#| message: false
+
+scholarships_raw <- vroom("data/scholarships.csv", show_col_types = FALSE)
+
+scholarships_raw %>% head(8) %>% kable(caption = "Стипендії (перші 8 рядків)")
+```
+
+---
+
+#### 2. Вертикальне об'єднання
+
+Допоміжна функція для перетворення назви аркуша на назву дисципліни:
+
+```{r}
+#| label: subject-mapping
+
+subject_map <- c(
+  grades_math    = "Математика",
+  grades_physics = "Фізика",
+  grades_cs      = "Інформатика"
+)
+```
+
+##### 2.1 Оцінки за перший семестр (`grades_s1`)
+
+```{r}
+#| label: grades-s1
+
+grades_s1 <- s1_data %>%
+  imap_dfr(~ .x %>% mutate(subject = subject_map[.y], semester = "S1"))
+
+grades_s1 %>% head(6) %>% kable(caption = "grades_s1 (перші 6 рядків)")
+```
+
+##### 2.2 Оцінки за другий семестр (`grades_s2`)
+
+```{r}
+#| label: grades-s2
+
+grades_s2 <- s2_data %>%
+  imap_dfr(~ .x %>% mutate(subject = subject_map[.y], semester = "S2"))
+
+grades_s2 %>% head(6) %>% kable(caption = "grades_s2 (перші 6 рядків)")
+```
+
+##### 2.3 Об'єднана таблиця `all_grades`
+
+```{r}
+#| label: all-grades
+
+all_grades <- bind_rows(grades_s1, grades_s2)
+
+cat("Розмір all_grades:", nrow(all_grades), "рядків x", ncol(all_grades), "стовпців\n")
+all_grades %>%
+  count(semester, subject) %>%
+  kable(caption = "Розподіл записів за семестром і предметом")
+```
+
+---
+
+#### 3. Горизонтальне об'єднання
+
+##### 3.1 Додаємо інформацію про студентів
+
+```{r}
+#| label: join-students
+
+all_grades <- all_grades %>%
+  left_join(
+    students_ref %>% select(student_id, full_name, group, faculty),
+    by = "student_id"
+  )
+
+all_grades %>% head(6) %>% kable(caption = "all_grades з даними студентів")
+```
+
+##### 3.2 Додаємо інформацію про стипендії
+
+```{r}
+#| label: join-scholarships
+
+all_grades <- all_grades %>%
+  left_join(
+    scholarships_raw %>% select(student_id, semester, scholarship_type, amount),
+    by = c("student_id", "semester")
+  )
+
+all_grades %>%
+  filter(!is.na(scholarship_type)) %>%
+  head(8) %>%
+  kable(caption = "Записи зі стипендіями (перші 8)")
+```
+
+---
+
+#### 4. Агрегація та аналіз
+
+##### 4.1 Загальний бал за дисципліну
+
+$$\text{total_score} = 0.6 \times \text{exam_score} + 0.4 \times \text{project_score}$$
+
+```{r}
+#| label: total-score
+
+all_grades <- all_grades %>%
+  mutate(total_score = 0.6 * exam_score + 0.4 * project_score)
+
+all_grades %>%
+  select(student_id, subject, semester, exam_score, project_score, total_score) %>%
+  head(8) %>%
+  kable(caption = "Загальний бал (перші 8 рядків)", digits = 1)
+```
+
+##### 4.2 Статистика за групою та семестром
+
+Для кожної групи та семестру обчислюємо:
+
+- середній загальний бал
+- кількість студентів з балом ≥ 90
+- частку студентів зі стипендією
+
+```{r}
+#| label: group-stats
+
+group_stats <- all_grades %>%
+  group_by(group, semester) %>%
+  summarise(
+    avg_total_score     = mean(total_score, na.rm = TRUE),
+    n_excellent         = n_distinct(student_id[total_score >= 90]),
+    n_total_students    = n_distinct(student_id),
+    n_with_scholarship  = n_distinct(student_id[!is.na(scholarship_type)]),
+    pct_scholarship     = n_with_scholarship / n_total_students,
+    .groups = "drop"
+  )
+
+group_stats %>%
+  kable(
+    caption = "Агрегована статистика за групою та семестром",
+    digits = 2,
+    col.names = c("Група", "Семестр", "Середній бал", "К-сть ≥90",
+                  "Всього студентів", "Зі стипендією", "Частка стип.")
+  )
+```
+
+---
+
+#### 5. Фільтруюче з'єднання
+
+##### 5.1 Студенти зі стипендією в обох семестрах (`semi_join`)
+
+```{r}
+#| label: semi-join-both
+
+schol_s1_df <- scholarships_raw %>% filter(semester == "S1")
+schol_s2_df <- scholarships_raw %>% filter(semester == "S2")
+
+both_semesters <- schol_s1_df %>%
+  semi_join(schol_s2_df, by = "student_id") %>%
+  distinct(student_id) %>%
+  left_join(students_ref %>% select(student_id, full_name, group), by = "student_id")
+
+both_semesters %>%
+  kable(caption = "Студенти зі стипендією в обох семестрах (semi_join)")
+```
+
+##### 5.2 Студенти, які втратили стипендію після S1 (`anti_join`)
+
+```{r}
+#| label: anti-join-lost
+
+lost_scholarship <- schol_s1_df %>%
+  anti_join(schol_s2_df, by = "student_id") %>%
+  distinct(student_id, scholarship_type, amount) %>%
+  left_join(students_ref %>% select(student_id, full_name, group), by = "student_id")
+
+lost_scholarship %>%
+  kable(caption = "Студенти, які втратили стипендію після S1 (anti_join)")
+```
+
+---
+
+<hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
+
+::: {style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;"}
+Виконав: Зайкін А.В. | Група: КІ-25-1м | Викладач: Сидоренко В.М.
+
+Кременчуцький національний університет імені Михайла Остроградського © 2026
+:::
