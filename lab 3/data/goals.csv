@@ -1,0 +1,5 @@
+"metric","target_value"
+"total_users",25000
+"total_page_views",1e+05
+"avg_bounce_rate",0.35
+"total_sessions",50000

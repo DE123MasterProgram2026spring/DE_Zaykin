@@ -1,0 +1,493 @@
+---
+title: "Лабораторна робота №3: Робота зі структурованими даними, перетворення форматів та віконні операції"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "&copy; [Andrew Zaykin](https://www.linkedin.com/in/zaykinandrew/), `r format(Sys.time(), '%Y')`"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+### Мета роботи
+
+Освоїти сучасні методи обробки неструктурованих та напівструктурованих даних (JSON), навчитися перетворювати формати таблиць (широкий ↔ довгий) за допомогою `tidyr`, а також застосовувати віконні функції для аналізу даних у контексті груп. Побудувати повний ETL-конвеєр для аналізу ефективності маркетингових кампаній на основі даних про веб-трафік за перший квартал 2024 року.
+
+---
+
+### Хід роботи
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#| label: setup
+#| message: false
+#| warning: false
+
+Sys.setlocale("LC_ALL", "en_US.UTF-8")
+
+library(jsonlite)
+library(readxl)
+library(writexl)
+library(vroom)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(knitr)
+```
+
+Виконати індивідуальне завдання варіанту 2:
+
+0.  **Згенерувати три файли з даними:**
+    -   `traffic.json` — JSON з щоденними метриками відвідуваності та вкладеними маркетинговими кампаніями
+    -   `monthly_reports.xlsx` — Excel з аркушами `jan`, `feb`, `mar` (сторінки сайту, сесії, тривалість; з об'єднаними комірками `region`)
+    -   `goals.csv` — цільові показники на квартал (`metric`, `target_value`)
+
+1.  **Етап 1: Робота з JSON**
+    -   Завантажити `traffic.json`, перетворити у `tibble`, витягнути поля з `hoist()` та `unnest_longer()`, відфільтрувати записи з `cost > 0`.
+
+2.  **Етап 2: Перетворення форматів**
+    -   Завантажити Excel, заповнити пропуски `fill()`, об'єднати аркуші, `pivot_longer()`, завантажити `goals.csv` через `vroom()`.
+
+3.  **Етап 3: Об'єднання та віконні операції**
+    -   Об'єднати дані за `month`, обчислити конверсію, ROI, ранжування (`dense_rank()`), зсув (`lag()`), накопичення (`cumsum()`).
+
+4.  **Етап 4: Аналіз**
+    -   Перевірити цільові показники, `semi_join()` для місяців з позитивним ROI, `anti_join()` для місяців з витратами та зростанням bounce rate.
+
+#### 0. Генерація даних
+
+Створимо синтетичні датасети у папці `data/`.
+
+```{r}
+#| label: generate-data
+#| message: false
+
+set.seed(42)
+
+# traffic.json
+dates <- seq(as.Date("2024-01-01"), as.Date("2024-03-31"), by = "day")
+
+campaign_templates <- list(
+  list(name = "google_ads",       channel = "paid_search"),
+  list(name = "facebook_ads",     channel = "social"),
+  list(name = "email_newsletter", channel = "email"),
+  list(name = "seo_blog",         channel = "organic"),
+  list(name = "twitter_promo",    channel = "social")
+)
+
+traffic_list <- lapply(dates, function(d) {
+  pv <- sample(800:2000, 1)
+  uu <- sample(round(pv * 0.4):round(pv * 0.8), 1)
+  br <- round(runif(1, 0.25, 0.60), 2)
+
+  n_camp   <- sample(2:4, 1)
+  selected <- sample(campaign_templates, n_camp)
+
+  campaigns <- lapply(selected, function(c) {
+    cost <- if (c$channel == "organic") {
+      round(runif(1, 0, 15), 2)
+    } else {
+      round(runif(1, 20, 250), 2)
+    }
+    list(name = c$name, channel = c$channel, cost = cost)
+  })
+
+  list(
+    date         = as.character(d),
+    page_views   = pv,
+    unique_users = uu,
+    bounce_rate  = br,
+    campaigns    = campaigns
+  )
+})
+
+dir.create("data", showWarnings = FALSE)
+write_json(traffic_list, "data/traffic.json", pretty = TRUE, auto_unbox = TRUE)
+
+# monthly_reports.xlsx
+regions <- c("UA-Central", "UA-West", "UA-East", "UA-South")
+pages   <- c("homepage", "products", "blog", "about", "contact", "pricing")
+
+generate_report_sheet <- function(seed_val) {
+  set.seed(seed_val)
+  rows <- list()
+  for (r in regions) {
+    for (i in seq_along(pages)) {
+      rows <- c(rows, list(tibble(
+        region           = if (i == 1) r else NA_character_,
+        page             = pages[i],
+        sessions         = sample(50:600, 1),
+        avg_duration_sec = round(runif(1, 20, 300), 1)
+      )))
+    }
+  }
+  bind_rows(rows)
+}
+
+sheets <- list(
+  jan = generate_report_sheet(101),
+  feb = generate_report_sheet(102),
+  mar = generate_report_sheet(103)
+)
+write_xlsx(sheets, "data/monthly_reports.xlsx")
+
+# goals.csv
+goals_df <- tibble(
+  metric       = c("total_users", "total_page_views", "avg_bounce_rate", "total_sessions"),
+  target_value = c(25000, 100000, 0.35, 50000)
+)
+write.csv(goals_df, "data/goals.csv", row.names = FALSE)
+```
+
+Дані збережено:
+
+-   `data/traffic.json` — 91 запис (01.01.2024 – 31.03.2024), кожен з вкладеними кампаніями
+-   `data/monthly_reports.xlsx` — аркуші `jan`, `feb`, `mar` (з об'єднаними комірками `region`)
+-   `data/goals.csv` — цільові показники на квартал
+
+---
+
+#### 1. Робота з JSON (Етап 1)
+
+##### 1.1 Завантаження JSON
+
+```{r}
+#| label: load-json
+
+traffic_raw <- read_json("data/traffic.json", simplifyVector = FALSE)
+
+cat("Кількість записів:", length(traffic_raw), "\n")
+cat("Структура першого запису:\n")
+str(traffic_raw[[1]], max.level = 2)
+```
+
+##### 1.2 Перетворення у tibble з hoist() та unnest_longer()
+
+Використовуємо `hoist()` для витягування полів верхнього рівня, `unnest_longer()` для розгортання масиву кампаній, а потім повторний `hoist()` для витягування полів кампанії:
+
+```{r}
+#| label: transform-json
+
+daily_metrics <- tibble(data = traffic_raw) %>%
+  hoist(data,
+    date         = "date",
+    page_views   = "page_views",
+    unique_users = "unique_users",
+    bounce_rate  = "bounce_rate",
+    campaigns    = "campaigns"
+  ) %>%
+  unnest_longer(campaigns) %>%
+  hoist(campaigns,
+    campaign_name = "name",
+    channel       = "channel",
+    cost          = "cost"
+  ) %>%
+  select(date, page_views, unique_users, bounce_rate, campaign_name, channel, cost) %>%
+  filter(cost > 0)
+
+cat("Розмір daily_metrics:", nrow(daily_metrics), "рядків x", ncol(daily_metrics), "стовпців\n")
+
+daily_metrics %>%
+  head(10) %>%
+  kable(caption = "daily_metrics (перші 10 рядків)")
+```
+
+---
+
+#### 2. Перетворення форматів (Етап 2)
+
+##### 2.1 Завантаження Excel (readxl)
+
+```{r}
+#| label: load-excel
+#| message: false
+
+sheet_names <- excel_sheets("data/monthly_reports.xlsx")
+cat("Аркуші:", paste(sheet_names, collapse = ", "), "\n")
+
+month_map <- c(jan = "2024-01", feb = "2024-02", mar = "2024-03")
+
+raw_sheets <- sheet_names %>%
+  set_names() %>%
+  map(~ read_excel("data/monthly_reports.xlsx", sheet = .x))
+
+raw_sheets[["jan"]] %>%
+  head(8) %>%
+  kable(caption = "Аркуш jan (до fill — видно NA в region)")
+```
+
+##### 2.2 Заповнення пропусків та об'єднання аркушів
+
+Використовуємо `fill(region, .direction = "down")` для заповнення пропусків, що імітують об'єднані комірки Excel:
+
+```{r}
+#| label: fill-combine
+
+monthly_traffic <- sheet_names %>%
+  set_names() %>%
+  map_dfr(~ {
+    read_excel("data/monthly_reports.xlsx", sheet = .x) %>%
+      fill(region, .direction = "down") %>%
+      mutate(month = month_map[.x])
+  })
+
+cat("Розмір monthly_traffic:", nrow(monthly_traffic), "рядків x", ncol(monthly_traffic), "стовпців\n")
+
+monthly_traffic %>%
+  head(8) %>%
+  kable(caption = "monthly_traffic (після fill, перші 8 рядків)")
+```
+
+##### 2.3 Перетворення у довгий формат (pivot_longer)
+
+Перетворюємо стовпці `sessions` та `avg_duration_sec` у довгий формат:
+
+```{r}
+#| label: pivot-longer
+
+monthly_traffic_long <- monthly_traffic %>%
+  pivot_longer(
+    cols      = c(sessions, avg_duration_sec),
+    names_to  = "metric",
+    values_to = "value"
+  )
+
+monthly_traffic_long %>%
+  head(10) %>%
+  kable(caption = "monthly_traffic_long (після pivot_longer)")
+```
+
+##### 2.4 Завантаження goals.csv (vroom)
+
+```{r}
+#| label: load-goals
+#| message: false
+
+goals <- vroom("data/goals.csv", delim = ",", show_col_types = FALSE)
+
+goals %>% kable(caption = "Цільові показники на квартал")
+```
+
+---
+
+#### 3. Об'єднання та віконні операції (Етап 3)
+
+##### 3.1 Об'єднання даних за month
+
+Агрегуємо щоденні метрики до місячного рівня за кампаніями, потім приєднуємо сумарні дані з `monthly_traffic`:
+
+```{r}
+#| label: join-data
+
+campaign_monthly <- daily_metrics %>%
+  mutate(month = format(as.Date(date), "%Y-%m")) %>%
+  group_by(month, campaign_name, channel) %>%
+  summarise(
+    page_views   = sum(page_views),
+    unique_users = sum(unique_users),
+    bounce_rate  = mean(bounce_rate),
+    cost         = sum(cost),
+    .groups = "drop"
+  )
+
+monthly_sessions <- monthly_traffic %>%
+  group_by(month) %>%
+  summarise(
+    total_sessions = sum(sessions),
+    avg_duration   = round(mean(avg_duration_sec), 1),
+    .groups = "drop"
+  )
+
+combined <- campaign_monthly %>%
+  left_join(monthly_sessions, by = "month")
+
+combined %>%
+  head(8) %>%
+  kable(caption = "Об'єднані дані (перші 8 рядків)", digits = 2)
+```
+
+##### 3.2 Конверсія та ROI
+
+$$\text{conversion} = \frac{\text{unique\_users}}{\text{page\_views}}, \qquad \text{ROI} = \frac{\text{unique\_users} \times 0.1 - \text{cost}}{\text{cost}}$$
+
+```{r}
+#| label: conversion-roi
+
+combined <- combined %>%
+  mutate(
+    conversion = unique_users / page_views,
+    roi        = (unique_users * 0.1 - cost) / cost
+  )
+
+combined %>%
+  select(month, campaign_name, page_views, unique_users, cost, conversion, roi) %>%
+  arrange(month, desc(roi)) %>%
+  kable(caption = "Конверсія та ROI за кампаніями", digits = 3)
+```
+
+##### 3.3 Віконні операції
+
+Для кожного місяця виконуємо:
+
+-   **Ранжування**: `dense_rank(desc(roi))` — кампанія з найвищою ROI отримує ранг 1
+-   **Зсув**: `bounce_change = bounce_rate - lag(bounce_rate)` — зміна bounce rate відносно попереднього місяця
+-   **Накопичення**: `cum_users = cumsum(unique_users)` — накопичена кількість унікальних користувачів
+
+```{r}
+#| label: window-ops
+
+combined <- combined %>%
+  group_by(month) %>%
+  mutate(roi_rank = dense_rank(desc(roi))) %>%
+  ungroup() %>%
+  group_by(campaign_name) %>%
+  arrange(month) %>%
+  mutate(
+    bounce_change = bounce_rate - lag(bounce_rate),
+    cum_users     = cumsum(unique_users)
+  ) %>%
+  ungroup()
+
+combined %>%
+  select(month, campaign_name, roi, roi_rank, bounce_change, cum_users) %>%
+  arrange(month, roi_rank) %>%
+  kable(caption = "Результати віконних операцій", digits = 3)
+```
+
+---
+
+#### 4. Аналіз (Етап 4)
+
+##### 4.1 Перевірка цільових показників
+
+Порівнюємо фактичні результати за квартал з цільовими показниками:
+
+```{r}
+#| label: check-goals
+
+site_daily <- daily_metrics %>%
+  distinct(date, page_views, unique_users, bounce_rate)
+
+actuals <- site_daily %>%
+  summarise(
+    total_users      = sum(unique_users),
+    total_page_views = sum(page_views),
+    avg_bounce_rate  = round(mean(bounce_rate), 3)
+  )
+
+total_sessions_actual <- monthly_traffic %>%
+  summarise(s = sum(sessions)) %>%
+  pull(s)
+
+comparison <- goals %>%
+  left_join(
+    tibble(
+      metric = c("total_users", "total_page_views", "avg_bounce_rate", "total_sessions"),
+      actual_value = c(
+        actuals$total_users,
+        actuals$total_page_views,
+        actuals$avg_bounce_rate,
+        total_sessions_actual
+      )
+    ),
+    by = "metric"
+  ) %>%
+  mutate(
+    goal_met = case_when(
+      metric == "avg_bounce_rate" ~ actual_value <= target_value,
+      TRUE                        ~ actual_value >= target_value
+    )
+  )
+
+comparison %>%
+  kable(caption = "Порівняння фактичних та цільових показників", digits = 3)
+```
+
+##### 4.2 Місяці з позитивним ROI всіх кампаній (`semi_join`)
+
+Знаходимо місяці, коли **всі** кампанії мали ROI > 0:
+
+```{r}
+#| label: semi-join
+
+months_all_positive_roi <- combined %>%
+  group_by(month) %>%
+  summarise(min_roi = min(roi), .groups = "drop") %>%
+  filter(min_roi > 0)
+
+positive_roi_data <- combined %>%
+  semi_join(months_all_positive_roi, by = "month")
+
+if (nrow(positive_roi_data) > 0) {
+  positive_roi_data %>%
+    select(month, campaign_name, roi, roi_rank) %>%
+    arrange(month, roi_rank) %>%
+    kable(caption = "Місяці, коли всі кампанії мали ROI > 0 (semi_join)")
+} else {
+  cat("Немає місяців, де всі кампанії одночасно мали ROI > 0.\n")
+  combined %>%
+    group_by(month) %>%
+    summarise(min_roi = min(roi), max_roi = max(roi), .groups = "drop") %>%
+    kable(caption = "Діапазон ROI за місяцями", digits = 3)
+}
+```
+
+##### 4.3 Місяці з витратами та зростанням bounce rate (`anti_join`)
+
+Знаходимо місяці, коли були маркетингові витрати, але середній bounce rate зріс відносно попереднього місяця:
+
+```{r}
+#| label: anti-join
+
+month_bounce_summary <- combined %>%
+  group_by(month) %>%
+  summarise(
+    avg_bounce = mean(bounce_rate),
+    total_cost = sum(cost),
+    .groups = "drop"
+  ) %>%
+  arrange(month) %>%
+  mutate(bounce_delta = avg_bounce - lag(avg_bounce))
+
+months_bounce_ok <- month_bounce_summary %>%
+  filter(is.na(bounce_delta) | bounce_delta <= 0) %>%
+  select(month)
+
+wasteful_months <- month_bounce_summary %>%
+  filter(total_cost > 0) %>%
+  anti_join(months_bounce_ok, by = "month")
+
+if (nrow(wasteful_months) > 0) {
+  wasteful_months %>%
+    kable(
+      caption = "Місяці з витратами, де bounce rate зріс (anti_join)",
+      digits = 3,
+      col.names = c("Місяць", "Сер. bounce rate", "Загальні витрати", "Зміна bounce rate")
+    )
+} else {
+  cat("У жодному місяці bounce rate не зріс при наявності витрат.\n")
+  month_bounce_summary %>%
+    kable(caption = "Динаміка bounce rate за місяцями", digits = 3)
+}
+```
+
+---
+
+<hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
+
+::: {style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;"}
+Виконав: Зайкін А.В. | Група: КІ-25-1м | Викладач: Сидоренко В.М.
+
+Кременчуцький національний університет імені Михайла Остроградського © 2026
+:::
