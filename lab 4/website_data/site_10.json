@@ -1,0 +1,10 @@
+{
+  "site_id": "site_02",
+  "month": "2024-04",
+  "metrics": {
+    "total_visits": 9200,
+    "unique_users": 5900,
+    "bounce_rate": 0.51,
+    "top_pages": ["blog", "services", "contact"]
+  }
+}

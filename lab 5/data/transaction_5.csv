@@ -1,0 +1,6 @@
+"","product_id","name","price","date","manager","clients","count","sale_sum","transaction_id"
+"1",7,"XBox",870,2024-09-23,"Andrey","client 13",2,1740,5
+"2",3,"Smart watch",380,2024-09-23,"Andrey","client 13",1,380,5
+"3",1,"Notebook",1000,2024-09-23,"Andrey","client 13",1,1000,5
+"4",8,"Wifi router",80,2024-09-23,"Andrey","client 13",2,160,5
+"5",5,"Playstation",1000,2024-09-23,"Andrey","client 13",3,3000,5

@@ -1,0 +1,9 @@
+{
+  "site_id": "site_06",
+  "month": "2024-03",
+  "metrics": {
+    "total_visits": 18300,
+    "bounce_rate": 0.47,
+    "top_pages": ["home", "catalog", "support"]
+  }
+}

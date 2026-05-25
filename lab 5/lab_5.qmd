@@ -1,0 +1,272 @@
+---
+title: "Лабораторна робота №5: Масштабований аналіз транзакційних даних"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "&copy; [Andrew Zaykin](https://www.linkedin.com/in/zaykinandrew/), `r format(Sys.time(), '%Y')`"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Мета роботи
+
+Побудувати масштабований, надійний та оптимізований ETL-конвеєр для аналізу транзакційних даних, який:\
+- безпечно завантажує всі файли (навіть якщо деякі пошкоджені);\
+- агрегує дані;\
+- виконує аналіз;\
+- зберігає результати.\
+Все це з використанням *функціонального програмування* та *паралельних обчислень* (purrr, foreach, furrr, future).
+
+## Хід роботи
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#| label: setup
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(furrr)
+library(future)
+library(foreach)
+library(doParallel)
+```
+
+Вхідні дані — 7 файлів `transaction_1.csv` – `transaction_7.csv`, кожен з яких містить записи про одну транзакцію з полями: `product_id`, `name`, `price`, `date`, `manager`, `clients`, `count`, `sale_sum`, `transaction_id`.
+
+### Етап 1: Функціональне завантаження та фільтрація (purrr)
+
+```{r}
+#| label: stage-1-safe-read
+#| message: true
+
+safe_read_transaction <- function(path) {
+  tryCatch(
+    expr = {
+      df <- read.csv(path, stringsAsFactors = FALSE)
+
+      required_cols <- c("product_id", "name", "price", "date",
+                         "manager", "clients", "count", "sale_sum", "transaction_id")
+
+      if (!all(required_cols %in% names(df))) {
+        message("Відсутні обов'язкові стовпці у файлі: ", path)
+        return(NULL)
+      }
+
+      df$price    <- suppressWarnings(as.numeric(df$price))
+      df$count    <- suppressWarnings(as.numeric(df$count))
+      df$sale_sum <- suppressWarnings(as.numeric(df$sale_sum))
+
+      if (any(is.na(df$sale_sum))) {
+        message("Нечислові значення sale_sum у файлі: ", path)
+        return(NULL)
+      }
+
+      df$source_file <- basename(path)
+      as_tibble(df)
+    },
+    error = function(e) {
+      message("Помилка при читанні файлу ", path, ": ", e$message)
+      NULL
+    }
+  )
+}
+```
+
+```{r}
+#| label: stage-1-load-and-filter
+#| message: true
+
+file_paths <- list.files("data", pattern = "^transaction_.*\\.csv$", full.names = TRUE)
+
+all_transactions <- map(file_paths, safe_read_transaction)
+
+cat("Завантажено файлів:", length(file_paths), "\n")
+cat("Успішно оброблено:", sum(!map_lgl(all_transactions, is.null)), "\n")
+cat("Відкинуто (NULL):", sum(map_lgl(all_transactions, is.null)), "\n\n")
+
+high_value <- keep(all_transactions, ~ !is.null(.x) && any(.x$sale_sum >= 1000))
+
+cat("Транзакцій із sale_sum >= 1000:", length(high_value), "\n")
+```
+
+### Етап 2: Послідовна агрегація (reduce)
+
+```{r}
+#| label: stage-2-reduce
+
+valid_transactions <- discard(all_transactions, is.null)
+
+combined_df <- reduce(valid_transactions, bind_rows)
+
+combined_df <- combined_df |>
+  mutate(file_id = as.integer(gsub("\\D", "", source_file)))
+
+cat("=== Об'єднана таблиця транзакцій ===\n")
+cat("Рядків:", nrow(combined_df), "| Стовпців:", ncol(combined_df), "\n\n")
+print(combined_df)
+```
+
+### Етап 3: Паралельний аналіз (foreach + furrr)
+
+```{r}
+#| label: stage-3-analyze-function
+
+analyze_manager <- function(df) {
+  df |>
+    group_by(manager) |>
+    summarise(
+      n_transactions   = n_distinct(transaction_id),
+      total_sales      = sum(sale_sum, na.rm = TRUE),
+      avg_check        = mean(sale_sum, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+```
+
+#### Спосіб 1: foreach + doParallel
+
+```{r}
+#| label: stage-3-foreach
+
+n_cores <- max(1, parallel::detectCores() - 1)
+cl <- makeCluster(n_cores)
+registerDoParallel(cl)
+
+managers <- unique(combined_df$manager)
+
+result_foreach <- foreach(
+  mgr = managers,
+  .combine = bind_rows,
+  .packages = c("dplyr")
+) %dopar% {
+  df_mgr <- combined_df[combined_df$manager == mgr, ]
+  tibble(
+    manager        = mgr,
+    n_transactions = length(unique(df_mgr$transaction_id)),
+    total_sales    = sum(df_mgr$sale_sum, na.rm = TRUE),
+    avg_check      = mean(df_mgr$sale_sum, na.rm = TRUE)
+  )
+}
+
+stopCluster(cl)
+
+cat("=== Результат (foreach %dopar%) ===\n")
+print(result_foreach)
+```
+
+#### Спосіб 2: furrr (future_map_dfr)
+
+```{r}
+#| label: stage-3-furrr
+
+plan(multisession, workers = n_cores)
+
+manager_dfs <- split(combined_df, combined_df$manager)
+
+result_furrr <- future_map_dfr(manager_dfs, ~ {
+  tibble(
+    manager        = unique(.x$manager),
+    n_transactions = n_distinct(.x$transaction_id),
+    total_sales    = sum(.x$sale_sum, na.rm = TRUE),
+    avg_check      = mean(.x$sale_sum, na.rm = TRUE)
+  )
+}, .options = furrr_options(seed = TRUE))
+
+plan(sequential)
+
+cat("=== Результат (future_map_dfr) ===\n")
+print(result_furrr)
+```
+
+### Етап 4: Просунута багатопоточність (future)
+
+```{r}
+#| label: stage-4-nested-futures
+
+plan(list(multisession, multisession))
+
+validate_price <- function(row) {
+  price <- as.numeric(row["price"])
+  count <- as.numeric(row["count"])
+  sale_sum <- as.numeric(row["sale_sum"])
+
+  list(
+    is_valid    = isTRUE(abs(price * count - sale_sum) < 0.01),
+    expected    = price * count,
+    actual      = sale_sum
+  )
+}
+
+outer_futures <- map(valid_transactions, ~ {
+  df <- .x
+  future({
+    inner_results <- map(seq_len(nrow(df)), function(i) {
+      inner_f <- future(validate_price(df[i, ]))
+      tryCatch(
+        value(inner_f),
+        error = function(e) list(is_valid = NA, expected = NA, actual = NA)
+      )
+    })
+    tibble(
+      source_file = unique(df$source_file),
+      total_rows  = nrow(df),
+      valid_rows  = sum(map_lgl(inner_results, ~ isTRUE(.x$is_valid))),
+      invalid_rows = sum(map_lgl(inner_results, ~ isFALSE(.x$is_valid)))
+    )
+  })
+})
+
+validation_results <- map_dfr(outer_futures, ~ {
+  tryCatch(
+    {
+      if (resolved(.x)) value(.x) else value(.x)
+    },
+    error = function(e) {
+      tibble(source_file = "error", total_rows = NA,
+             valid_rows = NA, invalid_rows = NA)
+    }
+  )
+})
+
+plan(sequential)
+
+cat("=== Результати валідації (вкладені ф'ючерси) ===\n")
+print(validation_results)
+```
+
+### Етап 5: Збереження результатів
+
+```{r}
+#| label: stage-5-save
+
+output_dir <- "data/high_value"
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+
+output_names <- paste0(output_dir, "/high_value_", seq_along(high_value), ".csv")
+
+walk2(high_value, output_names, ~ write.csv(.x, file = .y, row.names = FALSE))
+
+cat("=== Збережено файлів ===\n")
+cat("Кількість:", length(output_names), "\n")
+walk(output_names, ~ cat(" -", .x, "\n"))
+```
+
+```{=html}
+<hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
+<footer style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;">
+  <p><strong>Виконав(ла): Зайкін Андрій</strong> | Група: КІ-25-1м | Викладач: Сидоренко В.М.</p>
+  <p>Кременчуцький національний університет імені Михайла Остроградського &copy; 2025</p>
+</footer>
+```

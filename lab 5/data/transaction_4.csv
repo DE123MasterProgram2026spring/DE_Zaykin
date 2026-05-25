@@ -1,0 +1,6 @@
+"","product_id","name","price","date","manager","clients","count","sale_sum","transaction_id"
+"1",7,"XBox",870,2024-09-28,"Svetlana","client 12",2,1740,4
+"2",3,"Smart watch",380,2024-09-28,"Svetlana","client 12",1,380,4
+"3",9,"Air conditioning",500,2024-09-28,"Svetlana","client 12",1,500,4
+"4",1,"Notebook",1000,2024-09-28,"Svetlana","client 12",1,1000,4
+"5",4,"PC",1500,2024-09-28,"Svetlana","client 12",3,4500,4

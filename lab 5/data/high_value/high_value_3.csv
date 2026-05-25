@@ -1,0 +1,6 @@
+"X","product_id","name","price","date","manager","clients","count","sale_sum","transaction_id","source_file"
+1,4,"PC",1500,"2024-09-22","Andrey","client 11",2,3000,3,"transaction_3.csv"
+2,5,"Playstation",1000,"2024-09-22","Andrey","client 11",3,3000,3,"transaction_3.csv"
+3,2,"Smarthphone",850,"2024-09-22","Andrey","client 11",3,2550,3,"transaction_3.csv"
+4,8,"Wifi router",80,"2024-09-22","Andrey","client 11",1,80,3,"transaction_3.csv"
+5,1,"Notebook",1000,"2024-09-22","Andrey","client 11",3,3000,3,"transaction_3.csv"

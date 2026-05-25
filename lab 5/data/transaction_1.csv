@@ -1,0 +1,6 @@
+"","product_id","name","price","date","manager","clients","count","sale_sum","transaction_id"
+"1",9,"Air conditioning",500,2024-10-17,"Ivan","client 29",3,1500,1
+"2",8,"Wifi router",80,2024-10-17,"Ivan","client 29",1,80,1
+"3",7,"XBox",870,2024-10-17,"Ivan","client 29",1,870,1
+"4",2,"Smarthphone",850,2024-10-17,"Ivan","client 29",1,850,1
+"5",10,"Tablet",150,2024-10-17,"Ivan","client 29",1,150,1

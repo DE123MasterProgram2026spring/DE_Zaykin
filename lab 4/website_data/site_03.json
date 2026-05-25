@@ -1,0 +1,10 @@
+{
+  "site_id": "site_03",
+  "month": "2024-03",
+  "metrics": {
+    "total_visits": "багато",
+    "unique_users": 3200,
+    "bounce_rate": 0.38,
+    "top_pages": ["landing", "pricing"]
+  }
+}

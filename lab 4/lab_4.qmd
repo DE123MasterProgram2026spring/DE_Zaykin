@@ -1,0 +1,248 @@
+---
+title: "Лабораторна робота №4: Оптимізація коду в R — від циклів до функціонального програмування"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "&copy; [Andrew Zaykin](https://www.linkedin.com/in/zaykinandrew/), `r format(Sys.time(), '%Y')`"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Мета роботи
+
+Освоїти сучасні підходи до оптимізації коду в R, зокрема:\
+- заміну імпераивних циклів (`for`, `while`, `repeat`) на *функціонали* (`lapply`, `sapply`, `vapply`, `mapply`);\
+- використання *векторизованих операцій* (`rowSums`, `colMeans`, `apply`);\
+- застосування конструкцій обробки помилок (`try`, `tryCatch`) для стійкості конвеєрів.\
+Навчитися писати *ефективний, читабельний і масштабований код* у рамках функціональної парадигми програмування.
+
+
+## Хід роботи
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#| label: setup
+#| message: true
+library(dplyr)
+library(tidyr)
+library(jsonlite)
+```
+
+Виконати індивідуальне завдання варіанту 2:
+
+1. **Безпечне завантаження та розгортання JSON**
+    -   Створити функцію `safe_parse_site(path)`, яка:
+      -   використовувати `tryCatch()` для перехоплення помилок при читанні (`jsonlite::read_json`);
+      -   у разі помилки — виводить `message()` і повертає `NULL`;
+      -   використовувати `hoist()` для виділення `site_id`, `month`, `total_visits`, `unique_users`, `bounce_rate`;
+      -   перевіряти наявність усіх полів; якщо чогось не вистачає -- повертає `NULL`.
+    -   Використовувати `list.files()` + `lapply()` для завантаження всіх файлів.
+    -   Відфільтрувати `NULL`-результати та об’єднати дані у єдину таблицю `sites_data`.
+
+2. **Оптимізована обробка даних**
+    -   Розрахувати `engagement_rate = 1 - bounce_rate`.
+    -   Використовувати **векторизовані операції**, а не цикли.
+    -   Для кожного сайту обчисліть:
+        -   середню кількість унікальних користувачів (`avg_users`),
+        -   максимальний `engagement_rate`;
+        -   максимальний `engagement_rate`,
+        -   кількість місяців із даними.
+
+3. **Аналіз якості даних**
+    -   Визначити, *скільки сайтів мають дані принаймні за 2 місяці*.
+    -   Обчислити *середній bounce rate по всіх сайтах* за кожен місяць.
+    -   Використовувати `colMeans()` або `summarise(across(...))` -- не цикли!
+
+4. **Порівняння підходів (на прикладі)**
+    -   Написати *один і той самий розрахунок* (наприклад, середній bounce rate по сайтах) двома способами:
+      -   1.  За допомогою `for`-циклу.
+      -   2.  За допомогою `vapply()` або `sapply()`.
+    -   Коротко прокоментувати різницю в швидкості та читабельності.
+
+### Етап 1: Безпечне завантаження та розгортання JSON
+
+```{r}
+#| label: stage-1-safe-parse
+#| message: true
+
+safe_parse_site <- function(path) {
+  tryCatch(
+    expr = {
+      raw <- jsonlite::read_json(path, simplifyVector = TRUE)
+
+      required_fields <- c("site_id", "month")
+      required_metrics <- c("total_visits", "unique_users", "bounce_rate")
+
+      if (!all(required_fields %in% names(raw))) {
+        message("Відсутні обов'язкові поля у файлі: ", path)
+        return(NULL)
+      }
+      if (is.null(raw$metrics) || !all(required_metrics %in% names(raw$metrics))) {
+        message("Відсутні метрики у файлі: ", path)
+        return(NULL)
+      }
+
+      total_visits  <- suppressWarnings(as.numeric(raw$metrics$total_visits))
+      unique_users  <- suppressWarnings(as.numeric(raw$metrics$unique_users))
+      bounce_rate   <- suppressWarnings(as.numeric(raw$metrics$bounce_rate))
+
+      if (any(is.na(c(total_visits, unique_users, bounce_rate)))) {
+        message("Нечислові значення у метриках файлу: ", path)
+        return(NULL)
+      }
+
+      tibble(
+        site_id      = raw$site_id,
+        month        = raw$month,
+        total_visits = total_visits,
+        unique_users = unique_users,
+        bounce_rate  = bounce_rate
+      )
+    },
+    error = function(e) {
+      message("Помилка при читанні файлу ", path, ": ", e$message)
+      NULL
+    }
+  )
+}
+```
+
+```{r}
+#| label: stage-1-load-all
+#| message: true
+
+file_paths <- list.files("website_data", pattern = "\\.json$", full.names = TRUE)
+
+parsed_list <- lapply(file_paths, safe_parse_site)
+
+sites_data <- parsed_list |>
+  Filter(f = Negate(is.null)) |>
+  bind_rows()
+
+cat("Завантажено файлів:", length(file_paths), "\n")
+cat("Успішно оброблено:", sum(!sapply(parsed_list, is.null)), "\n")
+cat("Відкинуто (NULL):", sum(sapply(parsed_list, is.null)), "\n\n")
+
+print(sites_data)
+```
+
+### Етап 2: Оптимізована обробка даних
+
+```{r}
+#| label: stage-2-processing
+
+sites_data <- sites_data |>
+  mutate(engagement_rate = 1 - bounce_rate)
+
+site_summary <- sites_data |>
+  group_by(site_id) |>
+  summarise(
+    avg_users          = mean(unique_users, na.rm = TRUE),
+    max_engagement     = max(engagement_rate, na.rm = TRUE),
+    months_with_data   = n(),
+    .groups = "drop"
+  )
+
+cat("=== Зведена таблиця по сайтах ===\n")
+print(site_summary)
+```
+
+### Етап 3: Аналіз якості даних
+
+```{r}
+#| label: stage-3-quality
+
+sites_with_2plus_months <- site_summary |>
+  filter(months_with_data >= 2) |>
+  nrow()
+
+cat("Сайтів з даними за >= 2 місяці:", sites_with_2plus_months, "\n\n")
+
+monthly_bounce <- sites_data |>
+  group_by(month) |>
+  summarise(
+    avg_bounce_rate = mean(bounce_rate, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cat("=== Середній bounce rate за кожен місяць ===\n")
+print(monthly_bounce)
+
+bounce_matrix <- sites_data |>
+  select(month, bounce_rate) |>
+  group_by(month) |>
+  summarise(across(bounce_rate, mean, na.rm = TRUE), .groups = "drop")
+
+cat("\n=== Результат через summarise(across(...)) ===\n")
+print(bounce_matrix)
+```
+
+### Етап 4: Порівняння підходів
+
+```{r}
+#| label: stage-4-comparison
+
+# --- Спосіб 1: for-цикл ---
+unique_sites <- unique(sites_data$site_id)
+bounce_for <- numeric(length(unique_sites))
+names(bounce_for) <- unique_sites
+
+for (i in seq_along(unique_sites)) {
+  site <- unique_sites[i]
+  bounce_for[i] <- mean(sites_data$bounce_rate[sites_data$site_id == site])
+}
+
+cat("=== Середній bounce rate (for-цикл) ===\n")
+print(bounce_for)
+
+# --- Спосіб 2: vapply ---
+bounce_vapply <- vapply(
+  unique_sites,
+  function(s) mean(sites_data$bounce_rate[sites_data$site_id == s]),
+  FUN.VALUE = numeric(1)
+)
+
+cat("\n=== Середній bounce rate (vapply) ===\n")
+print(bounce_vapply)
+
+# --- Порівняння швидкості ---
+cat("\n=== Порівняння швидкості ===\n")
+
+time_for <- system.time({
+  result_for <- numeric(length(unique_sites))
+  for (i in seq_along(unique_sites)) {
+    result_for[i] <- mean(sites_data$bounce_rate[sites_data$site_id == unique_sites[i]])
+  }
+})
+
+time_vapply <- system.time({
+  result_vapply <- vapply(
+    unique_sites,
+    function(s) mean(sites_data$bounce_rate[sites_data$site_id == s]),
+    FUN.VALUE = numeric(1)
+  )
+})
+
+cat("for-цикл:  ", time_for["elapsed"], "сек.\n")
+cat("vapply:    ", time_vapply["elapsed"], "сек.\n")
+```
+
+```{=html}
+<hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
+<footer style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;">
+  <p><strong>Виконав(ла): Зайкін Андрій</strong> | Група: КІ-25-1м | Викладач: Сидоренко В.М.</p>
+  <p>Кременчуцький національний університет імені Михайла Остроградського &copy; 2025</p>
+</footer>
+```
