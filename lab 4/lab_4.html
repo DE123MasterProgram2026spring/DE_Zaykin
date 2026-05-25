@@ -628,6 +628,15 @@ cat(&quot;for-цикл:  &quot;, time_for[&quot;elapsed&quot;], &quot;сек.\n&
 <pre><code>## for-цикл:   0.001 сек.</code></pre>
 <pre class="r"><code>cat(&quot;vapply:    &quot;, time_vapply[&quot;elapsed&quot;], &quot;сек.\n&quot;)</code></pre>
 <pre><code>## vapply:     0 сек.</code></pre>
+<p><strong>Коментар до результатів порівняння:</strong></p>
+<p>Обидва підходи дають ідентичні числові результати. За швидкістю на
+малому наборі даних різниця незначна, проте <code>vapply()</code> має
+перевагу у читабельності: код компактніший, не потребує попередньої
+ініціалізації вектора результатів та індексної змінної. Крім того,
+<code>vapply()</code> гарантує тип результату (<code>numeric(1)</code>),
+що робить код безпечнішим — помилка виникне одразу, якщо функція поверне
+неочікуваний тип. На великих даних функціональний підхід також краще
+масштабується й легше паралелізується.</p>
 <hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
 <footer style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;">
   <p><strong>Виконав(ла): Зайкін Андрій</strong> | Група: КІ-25-1м | Викладач: Сидоренко В.М.</p>
