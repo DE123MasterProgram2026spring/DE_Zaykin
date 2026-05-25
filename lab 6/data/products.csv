@@ -1,0 +1,201 @@
+"product_id","product_name","category","brand","price"
+1,"Product_1","Electronics","Apple",247.22
+2,"Product_2","Books","Penguin",95.73
+3,"Product_3","Electronics","LG",380.78
+4,"Product_4","Electronics","Sony",156.05
+5,"Product_5","Clothing","Puma",87.01
+6,"Product_6","Sports","Adidas",21.24
+7,"Product_7","Clothing","H&M",72.57
+8,"Product_8","Clothing","Adidas",92.68
+9,"Product_9","Electronics","Sony",262.18
+10,"Product_10","Beauty","Nivea",406.5
+11,"Product_11","Toys","LEGO",62.1
+12,"Product_12","Beauty","Maybelline",447.24
+13,"Product_13","Toys","Fisher-Price",289.8
+14,"Product_14","Sports","Adidas",77.55
+15,"Product_15","Electronics","Samsung",451.89
+16,"Product_16","Books","Penguin",130.24
+17,"Product_17","Food","Unilever",79.55
+18,"Product_18","Sports","Under Armour",385.43
+19,"Product_19","Clothing","H&M",118.91
+20,"Product_20","Clothing","Adidas",156.17
+21,"Product_21","Toys","LEGO",261.69
+22,"Product_22","Home & Garden","Tefal",170.63
+23,"Product_23","Electronics","Sony",81.45
+24,"Product_24","Electronics","Apple",136.85
+25,"Product_25","Home & Garden","Tefal",178.62
+26,"Product_26","Sports","Under Armour",291.34
+27,"Product_27","Books","Hachette",405.26
+28,"Product_28","Toys","Hasbro",466.97
+29,"Product_29","Books","Penguin",417.76
+30,"Product_30","Books","Macmillan",67.87
+31,"Product_31","Sports","Under Armour",326.48
+32,"Product_32","Clothing","H&M",346.72
+33,"Product_33","Sports","Reebok",20.86
+34,"Product_34","Beauty","Maybelline",460.64
+35,"Product_35","Home & Garden","Philips",241.84
+36,"Product_36","Clothing","Nike",136.93
+37,"Product_37","Electronics","Samsung",428.97
+38,"Product_38","Clothing","Nike",118.43
+39,"Product_39","Beauty","Garnier",397.01
+40,"Product_40","Food","PepsiCo",325.15
+41,"Product_41","Home & Garden","IKEA",215.05
+42,"Product_42","Toys","Fisher-Price",52.06
+43,"Product_43","Food","PepsiCo",6.72
+44,"Product_44","Clothing","Nike",267.91
+45,"Product_45","Beauty","LOreal",264.53
+46,"Product_46","Sports","Nike",110.53
+47,"Product_47","Sports","Reebok",359.88
+48,"Product_48","Food","Kraft",480.87
+49,"Product_49","Clothing","Zara",261.54
+50,"Product_50","Books","Scholastic",91.39
+51,"Product_51","Sports","Puma",283.46
+52,"Product_52","Books","Hachette",380.83
+53,"Product_53","Sports","Nike",335.15
+54,"Product_54","Clothing","Zara",116.31
+55,"Product_55","Beauty","Maybelline",176.2
+56,"Product_56","Clothing","Puma",163.32
+57,"Product_57","Home & Garden","Bosch",452.92
+58,"Product_58","Beauty","LOreal",103.6
+59,"Product_59","Toys","LEGO",342.08
+60,"Product_60","Electronics","Samsung",73.07
+61,"Product_61","Books","Macmillan",57.96
+62,"Product_62","Clothing","Adidas",50.97
+63,"Product_63","Clothing","Puma",458.64
+64,"Product_64","Food","PepsiCo",142.14
+65,"Product_65","Food","PepsiCo",443.47
+66,"Product_66","Clothing","Puma",387.57
+67,"Product_67","Sports","Nike",398.55
+68,"Product_68","Home & Garden","Dyson",106.81
+69,"Product_69","Food","Nestle",28.86
+70,"Product_70","Books","Penguin",24.21
+71,"Product_71","Clothing","Puma",145.86
+72,"Product_72","Toys","Mattel",177.66
+73,"Product_73","Food","Nestle",370.04
+74,"Product_74","Clothing","Adidas",129.57
+75,"Product_75","Clothing","H&M",261.13
+76,"Product_76","Beauty","Nivea",380.93
+77,"Product_77","Books","Scholastic",319.86
+78,"Product_78","Electronics","Xiaomi",105.95
+79,"Product_79","Electronics","Sony",496.56
+80,"Product_80","Toys","Fisher-Price",5.2
+81,"Product_81","Sports","Adidas",107.25
+82,"Product_82","Books","Penguin",318.84
+83,"Product_83","Clothing","Nike",13.56
+84,"Product_84","Electronics","Samsung",18.23
+85,"Product_85","Books","Macmillan",305.88
+86,"Product_86","Sports","Reebok",287.42
+87,"Product_87","Sports","Adidas",126.7
+88,"Product_88","Electronics","Apple",460.16
+89,"Product_89","Home & Garden","Bosch",337.75
+90,"Product_90","Home & Garden","Bosch",324.5
+91,"Product_91","Books","Hachette",108.1
+92,"Product_92","Beauty","Maybelline",242.91
+93,"Product_93","Books","Scholastic",493.33
+94,"Product_94","Sports","Nike",496.59
+95,"Product_95","Beauty","Dove",228.13
+96,"Product_96","Food","Unilever",358.85
+97,"Product_97","Books","Hachette",161.7
+98,"Product_98","Sports","Adidas",417.68
+99,"Product_99","Food","Kraft",219.82
+100,"Product_100","Clothing","Nike",498.02
+101,"Product_101","Clothing","Zara",403.88
+102,"Product_102","Beauty","Maybelline",245.69
+103,"Product_103","Electronics","Apple",271.69
+104,"Product_104","Clothing","Nike",173.81
+105,"Product_105","Books","HarperCollins",30.75
+106,"Product_106","Food","Danone",232.07
+107,"Product_107","Beauty","LOreal",251.59
+108,"Product_108","Toys","Mattel",144.97
+109,"Product_109","Beauty","Dove",389.34
+110,"Product_110","Books","Hachette",155.41
+111,"Product_111","Sports","Puma",260.2
+112,"Product_112","Electronics","LG",241.59
+113,"Product_113","Sports","Adidas",385.58
+114,"Product_114","Toys","LEGO",86.14
+115,"Product_115","Clothing","Zara",223.68
+116,"Product_116","Clothing","Nike",264.09
+117,"Product_117","Home & Garden","Philips",241.07
+118,"Product_118","Books","Scholastic",264.7
+119,"Product_119","Books","Hachette",344.19
+120,"Product_120","Food","Unilever",179.14
+121,"Product_121","Home & Garden","IKEA",420.62
+122,"Product_122","Beauty","Nivea",461.35
+123,"Product_123","Beauty","Nivea",57.62
+124,"Product_124","Food","PepsiCo",107.23
+125,"Product_125","Sports","Puma",245.89
+126,"Product_126","Books","Macmillan",165.29
+127,"Product_127","Electronics","Apple",238.5
+128,"Product_128","Sports","Nike",295.11
+129,"Product_129","Electronics","Samsung",115.86
+130,"Product_130","Electronics","Xiaomi",368.34
+131,"Product_131","Books","HarperCollins",79.49
+132,"Product_132","Food","Danone",350.29
+133,"Product_133","Home & Garden","Bosch",135.73
+134,"Product_134","Electronics","Sony",216.1
+135,"Product_135","Clothing","Zara",362.06
+136,"Product_136","Beauty","Maybelline",239.86
+137,"Product_137","Beauty","Garnier",172.6
+138,"Product_138","Books","Hachette",124.09
+139,"Product_139","Toys","Fisher-Price",112.05
+140,"Product_140","Food","PepsiCo",124.82
+141,"Product_141","Electronics","Sony",284.63
+142,"Product_142","Books","HarperCollins",357.72
+143,"Product_143","Food","Nestle",58.51
+144,"Product_144","Books","Macmillan",261.94
+145,"Product_145","Electronics","LG",426.83
+146,"Product_146","Toys","LEGO",358.74
+147,"Product_147","Beauty","Garnier",160.42
+148,"Product_148","Clothing","H&M",62.33
+149,"Product_149","Home & Garden","Tefal",289.63
+150,"Product_150","Clothing","H&M",416.53
+151,"Product_151","Clothing","Puma",262.57
+152,"Product_152","Beauty","Maybelline",348.54
+153,"Product_153","Electronics","Xiaomi",252.45
+154,"Product_154","Home & Garden","Bosch",180.31
+155,"Product_155","Electronics","Xiaomi",482.58
+156,"Product_156","Books","HarperCollins",461.52
+157,"Product_157","Electronics","Apple",106.27
+158,"Product_158","Home & Garden","Dyson",477.68
+159,"Product_159","Toys","Mattel",437.63
+160,"Product_160","Beauty","LOreal",350.19
+161,"Product_161","Electronics","Xiaomi",258.73
+162,"Product_162","Food","PepsiCo",243
+163,"Product_163","Food","Danone",104.89
+164,"Product_164","Toys","LEGO",54.61
+165,"Product_165","Food","Kraft",238.93
+166,"Product_166","Beauty","Dove",159.53
+167,"Product_167","Toys","Playmobil",387.34
+168,"Product_168","Home & Garden","Bosch",451.03
+169,"Product_169","Food","Nestle",170.94
+170,"Product_170","Books","Hachette",412.85
+171,"Product_171","Beauty","Nivea",113.92
+172,"Product_172","Electronics","Samsung",384.23
+173,"Product_173","Beauty","Dove",282.55
+174,"Product_174","Food","Danone",214.61
+175,"Product_175","Electronics","Xiaomi",420.09
+176,"Product_176","Clothing","H&M",147.22
+177,"Product_177","Toys","Hasbro",238.01
+178,"Product_178","Clothing","Adidas",391.52
+179,"Product_179","Food","Nestle",45.94
+180,"Product_180","Beauty","Nivea",200.29
+181,"Product_181","Food","Danone",52.35
+182,"Product_182","Food","Nestle",71
+183,"Product_183","Food","Kraft",114.46
+184,"Product_184","Toys","Fisher-Price",140.69
+185,"Product_185","Food","Unilever",153.03
+186,"Product_186","Sports","Adidas",190.52
+187,"Product_187","Sports","Under Armour",248.27
+188,"Product_188","Toys","Mattel",439.91
+189,"Product_189","Clothing","Adidas",375.62
+190,"Product_190","Clothing","Adidas",477.82
+191,"Product_191","Toys","Hasbro",169.3
+192,"Product_192","Sports","Reebok",412.96
+193,"Product_193","Food","Nestle",70.67
+194,"Product_194","Sports","Adidas",66.72
+195,"Product_195","Beauty","Garnier",365.41
+196,"Product_196","Clothing","Nike",276.47
+197,"Product_197","Electronics","LG",306.22
+198,"Product_198","Electronics","Sony",65.86
+199,"Product_199","Clothing","H&M",438.84
+200,"Product_200","Beauty","Dove",421.96

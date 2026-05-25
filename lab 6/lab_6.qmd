@@ -1,0 +1,229 @@
+---
+title: "Лабораторна робота №6: Аналіз електронної комерції за 2024 рік"
+subtitle: "Інженерія даних | КрНУ ім. М. Остроградського"
+author: "&copy; [Andrew Zaykin](https://www.linkedin.com/in/zaykinandrew/), `r format(Sys.time(), '%Y')`"
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    sidebar: left
+    collapse-level: 2
+    code-fold: true
+    code-overflow: wrap
+    page-layout: full
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Мета роботи
+
+Провести повний аналіз продуктивності категорій та брендів інтернет-магазину за 2024 рік виключно за допомогою `data.table`.\
+- Завантаження великих даних (500 000+ рядків) через `fread()`;\
+- Маніпуляції на місці через `:=`;\
+- Агрегація з `by`, `.SD`, `.SDcols`;\
+- Злиття таблиць через `on`;\
+- Побудова пам'ять-ефективного відтворюваного конвеєра.
+
+## Хід роботи
+
+1. **Завантаження даних**
+    - Завантажте `sales_2024.csv` через `fread()`.
+    - Завантажте `products.csv` через `fread()`.
+    - Переконайтеся, що обидва об’єкти є `data.table`.
+
+2. **Підготовка даних**
+    - Додайте стовпець `revenue = quantity * price` *на місці* через `:=`.
+    - Видаліть стовпці `order_id`, `customer_id` *на місці*.
+    - Перетворіть `order_date` на `Date` (якщо потрібно).
+
+3. **Агрегація за категоріями та брендами**
+   - Об’єднайте `sales` з `products` через `on = "product_id"`.
+   - Для кожної комбінації `category` та `brand` обчисліть:
+     - загальний дохід (`total_revenue`),
+     - кількість унікальних продуктів (`.N`),
+     - середню ціну (`mean(price)`).
+   - Використовуйте `by = .(category, brand)`.
+   - Відсортуйте результат за спаданням `total_revenue` через `keyby`.
+
+4. **Аналіз за місяцями**
+   - Створіть стовпець `month = format(order_date, "%Y-%m")`.
+   - Для кожної категорії обчисліть *місячний дохід*.
+   - Використовуйте `.SD` та `.SDcols = "revenue"` для агрегації.
+
+5. **Топ-5 продуктів за дохідом**
+   - Обчисліть загальний дохід за кожен `product_id`.
+   - Виберіть *топ-5 продуктів* за дохідом.
+   - Додайте назву продукту через злиття з `products`.
+
+6. **Візуалізація (опціонально)**
+   - Перетворіть результат на `data.frame` через `setDF()`.
+   - Побудуйте графік дохідності категорій (через `ggplot2`).
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+#| label: setup
+library(data.table)
+library(ggplot2)
+```
+
+Вхідні дані:\
+- `sales_2024.csv` — 500 000 записів про замовлення (order_id, customer_id, product_id, quantity, order_date);\
+- `products.csv` — довідник продуктів (product_id, product_name, category, brand, price).
+
+### Етап 1: Завантаження даних
+
+```{r}
+#| label: stage-1-load
+
+sales <- fread("data/sales_2024.csv")
+products <- fread("data/products.csv")
+
+cat("=== sales_2024.csv ===\n")
+cat("Клас:", class(sales)[1], "\n")
+cat("Розмір:", nrow(sales), "x", ncol(sales), "\n\n")
+print(head(sales))
+
+cat("\n=== products.csv ===\n")
+cat("Клас:", class(products)[1], "\n")
+cat("Розмір:", nrow(products), "x", ncol(products), "\n\n")
+print(head(products))
+
+stopifnot(is.data.table(sales), is.data.table(products))
+cat("\nОбидва об'єкти є data.table ✓\n")
+```
+
+### Етап 2: Підготовка даних
+
+```{r}
+#| label: stage-2-prepare
+
+sales[, order_date := as.Date(order_date)]
+
+sales[products, price := i.price, on = "product_id"]
+
+sales[, revenue := quantity * price]
+
+sales[, c("order_id", "customer_id") := NULL]
+
+cat("=== Підготовлена таблиця sales ===\n")
+cat("Стовпці:", paste(names(sales), collapse = ", "), "\n")
+cat("Розмір:", nrow(sales), "x", ncol(sales), "\n\n")
+print(head(sales, 10))
+```
+
+### Етап 3: Агрегація за категоріями та брендами
+
+```{r}
+#| label: stage-3-aggregation
+
+merged <- sales[products, on = "product_id", nomatch = 0L]
+
+cat_brand_stats <- merged[, .(
+  total_revenue   = sum(revenue, na.rm = TRUE),
+  n_products      = uniqueN(product_id),
+  avg_price       = mean(price, na.rm = TRUE)
+), by = .(category, brand)]
+
+setorder(cat_brand_stats, -total_revenue)
+
+cat("=== Агрегація за category + brand (топ-15) ===\n")
+print(head(cat_brand_stats, 15))
+```
+
+### Етап 4: Аналіз за місяцями
+
+```{r}
+#| label: stage-4-monthly
+
+merged[, month := format(order_date, "%Y-%m")]
+
+monthly_revenue <- merged[, lapply(.SD, sum, na.rm = TRUE),
+                          by = .(category, month),
+                          .SDcols = "revenue"]
+
+setorder(monthly_revenue, category, month)
+
+cat("=== Місячний дохід за категоріями (перші 20 рядків) ===\n")
+print(head(monthly_revenue, 20))
+```
+
+### Етап 5: Топ-5 продуктів за дохідом
+
+```{r}
+#| label: stage-5-top5
+
+product_revenue <- merged[, .(total_revenue = sum(revenue, na.rm = TRUE)),
+                          by = product_id]
+
+setorder(product_revenue, -total_revenue)
+top5 <- product_revenue[1:5]
+
+top5_full <- top5[products, on = "product_id", nomatch = 0L]
+
+cat("=== Топ-5 продуктів за загальним дохідом ===\n")
+print(top5_full[, .(product_id, product_name, category, brand, total_revenue)])
+```
+
+### Етап 6: Візуалізація
+
+```{r}
+#| label: stage-6-visualization
+#| fig-width: 10
+#| fig-height: 6
+
+category_totals <- merged[, .(total_revenue = sum(revenue, na.rm = TRUE)),
+                          by = category]
+setorder(category_totals, -total_revenue)
+
+plot_df <- setDF(copy(category_totals))
+
+ggplot(plot_df, aes(x = reorder(category, total_revenue), y = total_revenue / 1e6)) +
+
+  geom_col(fill = "#2c7fb8", width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Загальний дохід за категоріями (2024)",
+    x = NULL,
+    y = "Дохід (млн грн)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    panel.grid.major.y = element_blank()
+  )
+```
+
+```{r}
+#| label: stage-6-monthly-plot
+#| fig-width: 12
+#| fig-height: 6
+
+monthly_plot_df <- setDF(copy(monthly_revenue))
+
+ggplot(monthly_plot_df, aes(x = month, y = revenue / 1e6, fill = category)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Місячний дохід за категоріями (2024)",
+    x = "Місяць",
+    y = "Дохід (млн грн)",
+    fill = "Категорія"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+```
+
+```{=html}
+<hr style="border: 1px solid #ddd; margin: 30px 0 10px 0;">
+<footer style="text-align: center; font-size: 0.9em; color: #666; padding: 15px; background: #f9f9f9; border-top: 1px solid #eee; margin-top: 20px;">
+  <p><strong>Виконав(ла): Зайкін Андрій</strong> | Група: КІ-25-1м | Викладач: Сидоренко В.М.</p>
+  <p>Кременчуцький національний університет імені Михайла Остроградського &copy; 2025</p>
+</footer>
+```
